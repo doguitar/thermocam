@@ -1,8 +1,9 @@
-import Image
+
 import threading
 import time
 import numpy as np
 import math
+from PIL import Image
 from subprocess import Popen, PIPE
 from Adafruit_AMG88xx import Adafruit_AMG88xx
 from colour import Color
