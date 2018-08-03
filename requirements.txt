@@ -1,0 +1,4 @@
+numpy
+cherrypy
+mako
+Adafruit_AMG88xx
