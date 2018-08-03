@@ -3,7 +3,7 @@
 import os
 import time
 import json
-
+import streamprocess
 import cherrypy
 import numpy
 from cherrypy.lib.static import serve_file
@@ -15,6 +15,7 @@ class Host(object):
     url_base = "/"
     base_path = None
     cache_string = 'max-age=432000'
+    _stream_process = streamprocess.StreamProcess()
 
     def __init__(self, base_path, settings):
         self.base_path = base_path
@@ -22,6 +23,7 @@ class Host(object):
         self.lookup = TemplateLookup(
             directories=[os.path.join(self.base_path, "html", "templates")])
         self.settings = settings
+        self._stream_process.start("http://localhost:8081")
         #self._cp_config = {'request.error_response': self.handle_error}
         cherrypy.engine.subscribe('stop', self.__del__)
 
@@ -37,6 +39,7 @@ class Host(object):
         return self.lookup.get_template(template)
 
     def stop(self):
+        self._stream_process.stop()
         return
 
     @cherrypy.expose

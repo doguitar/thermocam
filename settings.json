@@ -1,4 +1,5 @@
 {
-    "port": 8080,
-    "url_base": "/"
+    "port": 80,
+    "url_base": "/",
+    "web_socket_port": 8080
 }
