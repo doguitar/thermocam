@@ -1,5 +1,7 @@
 {
     "port": 80,
     "url_base": "/",
-    "web_socket_port": 8080
+    "web_socket_port": 8080,
+    "ffmpeg": "C:/ffmpeg/bin/ffmpeg.exe",
+    "ffmpeg_output": "http://192.168.1.245:8081/secret"
 }

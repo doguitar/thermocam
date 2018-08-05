@@ -1,8 +1,10 @@
-
 import threading
 import time
 import numpy as np
 import math
+import subprocess
+import random
+
 from PIL import Image
 from subprocess import Popen, PIPE
 from Adafruit_AMG88xx import Adafruit_AMG88xx
@@ -12,7 +14,7 @@ MINTEMP = 10.0
 MAXTEMP = 40.0
 COLORDEPTH = 1024
 
-INPUT_FPS = 120
+INPUT_FPS = 60
 OUTPUT_FPS = 30
 
 class StreamProcess(object):
@@ -34,20 +36,25 @@ class StreamProcess(object):
         self._COLORS = [(int(c.red * 255), int(c.green * 255), int(c.blue * 255)) for c in colors]
         return
 
-    def start(self, target):
+    def start(self, ffmpeg, target):
         self._STOP = False
-        self._SENSOR = Adafruit_AMG88xx()
+        #self._SENSOR = Adafruit_AMG88xx()
         self._FFMPEG_PROCESS = Popen([
-            'ffmpeg', 
-            '-y', 
-            '-f', 'image2pipe', 
-            '-vcodec', 'mjpeg', 
-            '-r', str(INPUT_FPS), 
-            '-i', '-', 
-            '-vcodec', 'mpeg4', 
-            '-qscale', '5', 
-            '-r', str(OUTPUT_FPS),
-            target], stdin=PIPE)
+                ffmpeg, 
+                '-y',
+                '-f', 'image2pipe', 
+                "-c:v", "mjpeg",
+                #'-framerate', str(INPUT_FPS),
+                '-i', '-',
+                '-f', 'mpegts',
+                '-c:v', 'mpeg1video',
+                '-b:v', '0',
+                '-bf', '0',
+                '-r', str(OUTPUT_FPS),
+                target
+            ], 
+            #-f mpegts -c:v mpeg1video -b:v 100k -bf 0 http://192.168.1.245:8081/secret
+            stdin=subprocess.PIPE)
         self._SENSOR_THREAD = threading.Thread(target=self.sensorLoop)
         self._SENSOR_THREAD.start()
         self._IMAGE_THREAD = threading.Thread(target=self.imageLoop)
@@ -56,37 +63,49 @@ class StreamProcess(object):
 
     def stop(self):
         self._STOP = True
-        self._FFMPEG_PROCESS.stdin.close()
-        self._FFMPEG_PROCESS.wait()
-        self._FFMPEG_PROCESS = None
-        self._SENSOR_THREAD.join()
-        self._SENSOR_THREAD = None
+        if self._FFMPEG_PROCESS:
+            self._FFMPEG_PROCESS.stdin.write("\x03")
+            self._FFMPEG_PROCESS.stdin.close()
+            self._FFMPEG_PROCESS.wait()
+            self._FFMPEG_PROCESS = None
+        if self._SENSOR_THREAD:
+            self._SENSOR_THREAD = None
+        if self._IMAGE_THREAD:
+            self._IMAGE_THREAD = None
         return
 
     def imageLoop(self):
         time.sleep(1)
         while not self._STOP:
+            start = time.time()
             self._PIXEL_BUFFER_LOCK.acquire()
-            if len(self._PIXEL_BUFFER) == 0: continue
+            if len(self._PIXEL_BUFFER) == 0: 
+                continue
             
             pixelBuffer = self._PIXEL_BUFFER[:]
             self._PIXEL_BUFFER = []
             self._PIXEL_BUFFER_LOCK.release()
 
-            s = len(pixelBuffer[0])**(1/2.0)
+            s = int(len(pixelBuffer[0])**(1/2.0))
 
             mean = np.mean(pixelBuffer, axis=0)
+            mean = [(p -MINTEMP)/(MAXTEMP-MINTEMP) for p in mean]
+            colored = np.reshape(mean,(s,s))
 
-            image = Image.fromarray(np.split(mean, s))
-            image.save(self._FFMPEG_PROCESS.stdin, 'JPEG')
-            time.sleep(1.0/INPUT_FPS)
+            image = Image.fromarray(np.uint8(colored * 255) , 'L')
+            image.save(self._FFMPEG_PROCESS.stdin, 'jpeg')
+            end = time.time()
+            sleepTime = (1.0/INPUT_FPS) - (end - start)
+            if sleepTime > 0:
+                time.sleep(sleepTime)
         return
 
-    def sensorLoop(self):
+    def sensorLoop(self):        
         while not self._STOP:
-            pixels = [MINTEMP + (i/16.0) * (MAXTEMP-MINTEMP) for i in range(0, 16)] #self._SENSOR.readPixels()
-            pixels = [map(p, MINTEMP, MAXTEMP, 0, COLORDEPTH - 1) for p in pixels]
+            pixels = [int((i/15.0) * (MAXTEMP - MINTEMP))+MINTEMP for i in range(0, 16)] #self._SENSOR.readPixels()
+            
             self._PIXEL_BUFFER_LOCK.acquire()
             self._PIXEL_BUFFER.append(pixels)
             self._PIXEL_BUFFER_LOCK.release()
+            end = time.time()
         return
