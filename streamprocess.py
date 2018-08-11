@@ -40,7 +40,7 @@ class StreamProcess(object):
     def start(self, ffmpeg, target):
         self._START_ARGS = [ffmpeg, target]
         self._STOP = False
-        #self._SENSOR = Adafruit_AMG88xx()
+        self._SENSOR = Adafruit_AMG88xx()
         self._FFMPEG_PROCESS = Popen([
                 ffmpeg, 
                 '-y',
@@ -126,7 +126,7 @@ class StreamProcess(object):
     def sensorLoop(self):      
         try:  
             while not self._STOP:
-                pixels = [int((i/15.0) * (MAXTEMP - MINTEMP))+MINTEMP for i in range(0, 16)] #self._SENSOR.readPixels()
+                pixels = self._SENSOR.readPixels()
                 
                 self._PIXEL_BUFFER_LOCK.acquire()
                 self._PIXEL_BUFFER.append(pixels)
