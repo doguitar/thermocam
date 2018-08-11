@@ -100,6 +100,7 @@ class StreamProcess(object):
                 start = time.time()
                 self._PIXEL_BUFFER_LOCK.acquire()
                 if len(self._PIXEL_BUFFER) == 0: 
+                    self._PIXEL_BUFFER_LOCK.release()
                     continue
                 
                 pixelBuffer = self._PIXEL_BUFFER[:]
