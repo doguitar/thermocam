@@ -18,7 +18,7 @@ INPUT_FPS = 60
 OUTPUT_FPS = 30
 
 class StreamProcess(object):
-    
+
     _FFMPEG_PROCESS = None
     _SENSOR_THREAD = None
     _IMAGE_THREAD = None
@@ -27,7 +27,7 @@ class StreamProcess(object):
     _START_ARGS = None
 
     _COLORS = None
-    
+
     _PIXEL_BUFFER_LOCK = threading.Lock()
     _PIXEL_BUFFER = []
 
@@ -125,13 +125,14 @@ class StreamProcess(object):
 
     def sensorLoop(self):      
         try:  
+            sleep(3)
             while not self._STOP:
                 pixels = self._SENSOR.readPixels()
                 
                 self._PIXEL_BUFFER_LOCK.acquire()
                 self._PIXEL_BUFFER.append(pixels)
                 self._PIXEL_BUFFER_LOCK.release()
-                end = time.time()
+                
         except Exception as e:
             print (e)
             self.restart()
