@@ -10,8 +10,6 @@ from subprocess import Popen, PIPE
 from Adafruit_AMG88xx import Adafruit_AMG88xx
 from colour import Color
 
-MINTEMP = 10.0
-MAXTEMP = 40.0
 COLORDEPTH = 1024
 
 INPUT_FPS = 60
@@ -30,6 +28,8 @@ class StreamProcess(object):
 
     _PIXEL_BUFFER_LOCK = threading.Lock()
     _PIXEL_BUFFER = []
+
+    _HISTORY = [(10, 40) for i in range(600)]
 
     def __init__(self):
         blue = Color("indigo")
@@ -110,7 +110,14 @@ class StreamProcess(object):
                 s = int(len(pixelBuffer[0])**(1/2.0))
 
                 mean = np.mean(pixelBuffer, axis=0)
-                mean = [(p -MINTEMP)/(MAXTEMP-MINTEMP) for p in mean]
+
+                self._HISTORY.pop(0)
+                self._HISTORY.append((min(mean), max(mean)))
+                self._MINTEMP = min([x[0] for x in self._HISTORY])
+                self._MAXTEMP = max([x[1] for x in self._HISTORY])
+
+
+                mean = [(p -self._MINTEMP)/(self._MAXTEMP-self._MINTEMP) for p in mean]
                 colored = np.reshape(mean,(s,s))
 
                 image = Image.fromarray(np.uint8(colored * 255) , 'L')
@@ -128,6 +135,7 @@ class StreamProcess(object):
         try:  
             time.sleep(3)
             while not self._STOP:
+                #pixels = [i for i in range(64)]
                 pixels = self._SENSOR.readPixels()
                 
                 self._PIXEL_BUFFER_LOCK.acquire()
