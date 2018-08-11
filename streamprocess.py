@@ -125,7 +125,7 @@ class StreamProcess(object):
 
     def sensorLoop(self):      
         try:  
-            sleep(3)
+            time.sleep(3)
             while not self._STOP:
                 pixels = self._SENSOR.readPixels()
                 
