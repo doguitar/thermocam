@@ -24,6 +24,7 @@ class StreamProcess(object):
     _IMAGE_THREAD = None
     _SENSOR = None
     _STOP = False
+    _START_ARGS = None
 
     _COLORS = None
     
@@ -37,6 +38,7 @@ class StreamProcess(object):
         return
 
     def start(self, ffmpeg, target):
+        self._START_ARGS = [ffmpeg, target]
         self._STOP = False
         #self._SENSOR = Adafruit_AMG88xx()
         self._FFMPEG_PROCESS = Popen([
@@ -64,48 +66,73 @@ class StreamProcess(object):
     def stop(self):
         self._STOP = True
         if self._FFMPEG_PROCESS:
-            self._FFMPEG_PROCESS.stdin.write("\x03")
-            self._FFMPEG_PROCESS.stdin.close()
-            self._FFMPEG_PROCESS.wait()
-            self._FFMPEG_PROCESS = None
+            try:
+                self._FFMPEG_PROCESS.stdin.write("\x03")
+                self._FFMPEG_PROCESS.stdin.close()
+                self._FFMPEG_PROCESS.wait()
+                self._FFMPEG_PROCESS = None
+            except:
+                pass
         if self._SENSOR_THREAD:
-            self._SENSOR_THREAD = None
+            try:
+                if self._SENSOR_THREAD.isAlive():
+                    self._SENSOR_THREAD.join()
+                self._SENSOR_THREAD = None
+            except:
+                pass
         if self._IMAGE_THREAD:
-            self._IMAGE_THREAD = None
+            try:
+                if self._IMAGE_THREAD.isAlive():
+                    self._IMAGE_THREAD.join()
+                self._IMAGE_THREAD = None
+            except:
+                pass
         return
+
+    def restart(self):
+        self.stop()
+        self.start(*self._START_ARGS)
 
     def imageLoop(self):
         time.sleep(1)
-        while not self._STOP:
-            start = time.time()
-            self._PIXEL_BUFFER_LOCK.acquire()
-            if len(self._PIXEL_BUFFER) == 0: 
-                continue
-            
-            pixelBuffer = self._PIXEL_BUFFER[:]
-            self._PIXEL_BUFFER = []
-            self._PIXEL_BUFFER_LOCK.release()
+        try:
+            while not self._STOP:            
+                start = time.time()
+                self._PIXEL_BUFFER_LOCK.acquire()
+                if len(self._PIXEL_BUFFER) == 0: 
+                    continue
+                
+                pixelBuffer = self._PIXEL_BUFFER[:]
+                self._PIXEL_BUFFER = []
+                self._PIXEL_BUFFER_LOCK.release()
 
-            s = int(len(pixelBuffer[0])**(1/2.0))
+                s = int(len(pixelBuffer[0])**(1/2.0))
 
-            mean = np.mean(pixelBuffer, axis=0)
-            mean = [(p -MINTEMP)/(MAXTEMP-MINTEMP) for p in mean]
-            colored = np.reshape(mean,(s,s))
+                mean = np.mean(pixelBuffer, axis=0)
+                mean = [(p -MINTEMP)/(MAXTEMP-MINTEMP) for p in mean]
+                colored = np.reshape(mean,(s,s))
 
-            image = Image.fromarray(np.uint8(colored * 255) , 'L')
-            image.save(self._FFMPEG_PROCESS.stdin, 'jpeg')
-            end = time.time()
-            sleepTime = (1.0/INPUT_FPS) - (end - start)
-            if sleepTime > 0:
-                time.sleep(sleepTime)
+                image = Image.fromarray(np.uint8(colored * 255) , 'L')
+                image.save(self._FFMPEG_PROCESS.stdin, 'jpeg')
+                end = time.time()
+                sleepTime = (1.0/INPUT_FPS) - (end - start)
+                if sleepTime > 0:
+                    time.sleep(sleepTime)
+        except Exception as e:
+            print (e)
+            self.restart()
         return
 
-    def sensorLoop(self):        
-        while not self._STOP:
-            pixels = [int((i/15.0) * (MAXTEMP - MINTEMP))+MINTEMP for i in range(0, 16)] #self._SENSOR.readPixels()
-            
-            self._PIXEL_BUFFER_LOCK.acquire()
-            self._PIXEL_BUFFER.append(pixels)
-            self._PIXEL_BUFFER_LOCK.release()
-            end = time.time()
+    def sensorLoop(self):      
+        try:  
+            while not self._STOP:
+                pixels = [int((i/15.0) * (MAXTEMP - MINTEMP))+MINTEMP for i in range(0, 16)] #self._SENSOR.readPixels()
+                
+                self._PIXEL_BUFFER_LOCK.acquire()
+                self._PIXEL_BUFFER.append(pixels)
+                self._PIXEL_BUFFER_LOCK.release()
+                end = time.time()
+        except Exception as e:
+            print (e)
+            self.restart()
         return

@@ -45,6 +45,15 @@ class Host(object):
         return
 
     @cherrypy.expose
+    def restart(self):
+        self._stream_process.restart()
+        return
+
+    @cherrypy.expose
+    def start(self):        
+        self._stream_process.start(settings["ffmpeg"], settings["ffmpeg_output"])
+
+    @cherrypy.expose
     @cherrypy.tools.etags(autotags=True)
     def js(self, *args):
         path = '/'.join(filter(lambda a: not a == "..", args))
