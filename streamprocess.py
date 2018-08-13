@@ -107,6 +107,7 @@ class StreamProcess(object):
 
                 if not size:
                     size = int(len(pixelbuffer[0])**(1 / 2.0))
+                    size = (size, size)
 
                 mean = np.mean(pixelbuffer, axis=0)
                 
