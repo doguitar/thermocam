@@ -9,7 +9,8 @@ from colour import Color
 
 COLORDEPTH = 1024
 
-FPS = 30
+INPUT_FPS = 5
+OUTPUT_FPS = 5
 
 
 class StreamProcess(object):
@@ -31,6 +32,8 @@ class StreamProcess(object):
     _mintemp = 10
     _maxtemp = 32
 
+    _fakedata = [_mintemp+i for i in range(8*8)]
+
     def __init__(self):
         blue = Color("indigo")
         colors = list(blue.range_to(Color("red"), COLORDEPTH))
@@ -47,20 +50,22 @@ class StreamProcess(object):
             pass
         self._ffmpeg_process = subprocess.Popen([
             ffmpeg,
-            '-y',
+            '-y',            
             '-f', 'image2pipe',
             "-c:v", "mjpeg",
+            '-framerate', str(INPUT_FPS),
             '-i', '-',
             '-f', 'mpegts',
             '-c:v', 'mpeg1video',
             '-b:v', '0',
             '-bf', '0',
-            '-q', '1',
-            #'-r', str(FPS),
+            '-q', '2',
+            '-r', str(OUTPUT_FPS),
+            '-strict', '-1',
             target
         ], stdin=subprocess.PIPE)
         self._pixel_buffer_event.clear()
-        self._sensor_timer = PerpetualTimer(FPS/60.0, self.read_sensor)
+        self._sensor_timer = PerpetualTimer(1/INPUT_FPS, self.read_sensor)
         self._sensor_timer.start()
         self._image_thread = threading.Thread(target=self.image_loop)
         self._image_thread.start()
@@ -133,7 +138,8 @@ class StreamProcess(object):
             if self._sensor:
                 pixels = self._sensor.readPixels()
             else:
-                pixels = [self._mintemp+i for i in range(8*8)]
+                self._fakedata.append(self._fakedata.pop(0))
+                pixels = self._fakedata
 
             self._pixel_buffer_lock.acquire()
             self._pixel_buffer.append(pixels)
@@ -148,15 +154,15 @@ class StreamProcess(object):
 
 class PerpetualTimer(object):
 
-    def __init__(self,t,hFunction):
-        self.t=t
-        self.hFunction = hFunction
-        self.thread = threading.Timer(self.t,self.handle_function)
+    def __init__(self, timespan, target):
+        self.timespan = timespan
+        self.target = target
+        self.thread = threading.Timer(self.timespan, self.handle_function)
 
     def handle_function(self):
-        self.hFunction()
-        self.thread = threading.Timer(self.t,self.handle_function)
+        self.thread = threading.Timer(self.timespan, self.handle_function)
         self.thread.start()
+        self.target()
 
     def start(self):
         self.thread.start()
