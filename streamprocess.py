@@ -9,7 +9,7 @@ from colour import Color
 
 COLORDEPTH = 1024
 
-FPS = 3
+FPS = 30
 
 
 class StreamProcess(object):
@@ -55,8 +55,8 @@ class StreamProcess(object):
             '-c:v', 'mpeg1video',
             '-b:v', '0',
             '-bf', '0',
-            '-g', '1',
-            '-r', str(FPS),
+            '-q', '1',
+            #'-r', str(FPS),
             target
         ], stdin=subprocess.PIPE)
         self._pixel_buffer_event.clear()
