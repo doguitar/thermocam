@@ -9,8 +9,7 @@ from colour import Color
 
 COLORDEPTH = 1024
 
-INPUT_FPS = 5
-OUTPUT_FPS = 30
+FPS = 3
 
 
 class StreamProcess(object):
@@ -56,11 +55,12 @@ class StreamProcess(object):
             '-c:v', 'mpeg1video',
             '-b:v', '0',
             '-bf', '0',
-            '-r', str(OUTPUT_FPS),
+            '-g', '1',
+            '-r', str(FPS),
             target
         ], stdin=subprocess.PIPE)
         self._pixel_buffer_event.clear()
-        self._sensor_timer = PerpetualTimer(INPUT_FPS/60.0, self.read_sensor)
+        self._sensor_timer = PerpetualTimer(FPS/60.0, self.read_sensor)
         self._sensor_timer.start()
         self._image_thread = threading.Thread(target=self.image_loop)
         self._image_thread.start()
