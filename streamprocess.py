@@ -28,9 +28,9 @@ class StreamProcess(object):
     _pixel_buffer_event = threading.Event()
     _pixel_buffer = []
 
-    _history = [(10, 40) for i in range(120)]
-    _mintemp = 10
-    _maxtemp = 50
+    _history = [(10, 40) for i in range(600)]
+    _mintemp = 0
+    _maxtemp = 100
 
     def __init__(self):
         blue = Color("indigo")
@@ -42,13 +42,15 @@ class StreamProcess(object):
     def start(self, ffmpeg, target):
         self._start_args = [ffmpeg, target]
         self._stop = False
-        self._sensor = Adafruit_AMG88xx()
+        try:
+            self._sensor = Adafruit_AMG88xx()
+        except: 
+            pass
         self._ffmpeg_process = subprocess.Popen([
             ffmpeg,
             '-y',
             '-f', 'image2pipe',
             "-c:v", "mjpeg",
-            #'-framerate', str(INPUT_FPS),
             '-i', '-',
             '-f', 'mpegts',
             '-c:v', 'mpeg1video',
@@ -57,7 +59,8 @@ class StreamProcess(object):
             '-r', str(OUTPUT_FPS),
             target
         ], stdin=subprocess.PIPE)
-        self._sensor_timer = threading.Timer(INPUT_FPS/60.0, self.read_sensor)
+        self._pixel_buffer_event.clear()
+        self._sensor_timer = PerpetualTimer(INPUT_FPS/60.0, self.read_sensor)
         self._sensor_timer.start()
         self._image_thread = threading.Thread(target=self.image_loop)
         self._image_thread.start()
@@ -97,46 +100,66 @@ class StreamProcess(object):
         size = None
         try:
             while not self._stop:
-                self._pixel_buffer_event.wait()                
+                self._pixel_buffer_event.wait()
                 self._pixel_buffer_lock.acquire()
-
                 pixelbuffer = self._pixel_buffer[:]
                 self._pixel_buffer = []
-
                 self._pixel_buffer_lock.release()
+                self._pixel_buffer_event.clear()
 
                 if not size:
                     size = int(len(pixelbuffer[0])**(1 / 2.0))
                     size = (size, size)
 
-                mean = np.mean(pixelbuffer, axis=0)
+                mean = np.mean(pixelbuffer, axis=0).tolist()
                 
-                #self._history.pop(0)
-                #self._history.append((min(mean), max(mean)))
-                #self._mintemp = min([x[0] for x in self._history])
-                #self._maxtemp = max([x[1] for x in self._history])
+                self._history.pop(0)
+                self._history.append((min(mean), max(mean)))
+                self._mintemp = min([x[0] for x in self._history])
+                self._maxtemp = max([x[1] for x in self._history])
 
                 mean = [(p - self._mintemp) / (max(self._maxtemp - self._mintemp, 1)) for p in mean]
+                mean = [int(x * 255) for x in mean]
                 frame = Image.new('L', size)
-                frame.putdata(np.uint8(mean * 255))
+                frame.putdata(mean)
                 frame.save(self._ffmpeg_process.stdin, 'jpeg')
         except Exception as ex:
             print (ex)
             self.restart()
-        finally:
-            self._pixel_buffer_event.clear()
         return
 
     def read_sensor(self):
         try:
-            pixels = self._sensor.readPixels()
+            if self._sensor:
+                pixels = self._sensor.readPixels()
+            else:
+                pixels = [self._mintemp+i for i in range(8*8)]
 
             self._pixel_buffer_lock.acquire()
             self._pixel_buffer.append(pixels)
-            self._pixel_buffer_lock.release()
             self._pixel_buffer_event.set()
+            self._pixel_buffer_lock.release()
 
         except Exception as ex:
             print (ex)
             self.restart()
         return
+
+
+class PerpetualTimer(object):
+
+    def __init__(self,t,hFunction):
+        self.t=t
+        self.hFunction = hFunction
+        self.thread = threading.Timer(self.t,self.handle_function)
+
+    def handle_function(self):
+        self.hFunction()
+        self.thread = threading.Timer(self.t,self.handle_function)
+        self.thread.start()
+
+    def start(self):
+        self.thread.start()
+
+    def cancel(self):
+        self.thread.cancel()
