@@ -9,7 +9,7 @@ from colour import Color
 
 COLORDEPTH = 1024
 
-INPUT_FPS = 60
+INPUT_FPS = 5
 OUTPUT_FPS = 30
 
 
@@ -30,7 +30,7 @@ class StreamProcess(object):
     _history = [(10, 40) for i in range(120)]
     _mintemp = 10
     _maxtemp = 50
-    
+
     def __init__(self):
         blue = Color("indigo")
         colors = list(blue.range_to(Color("red"), COLORDEPTH))
