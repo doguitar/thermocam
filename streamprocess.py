@@ -1,4 +1,5 @@
 import threading
+import multiprocessing
 import time
 import subprocess
 import numpy as np
@@ -9,9 +10,8 @@ from colour import Color
 
 COLORDEPTH = 1024
 
-INPUT_FPS = 5
 OUTPUT_FPS = 5
-
+INPUT_FPS = OUTPUT_FPS*1
 
 class StreamProcess(object):
 
@@ -61,11 +61,12 @@ class StreamProcess(object):
             '-bf', '0',
             '-q', '2',
             '-r', str(OUTPUT_FPS),
+            '-g', '1',
             '-strict', '-1',
             target
         ], stdin=subprocess.PIPE)
         self._pixel_buffer_event.clear()
-        self._sensor_timer = PerpetualTimer(1/INPUT_FPS, self.read_sensor)
+        self._sensor_timer = PerpetualTimer(1.0/INPUT_FPS, self.read_sensor)
         self._sensor_timer.start()
         self._image_thread = threading.Thread(target=self.image_loop)
         self._image_thread.start()
@@ -155,17 +156,30 @@ class StreamProcess(object):
 class PerpetualTimer(object):
 
     def __init__(self, timespan, target):
-        self.timespan = timespan
-        self.target = target
-        self.thread = threading.Timer(self.timespan, self.handle_function)
+        self._timespan = timespan
+        self._target = target
+        self._thread = threading.Thread(target=self.handle_function)
+        self._timer = threading.Thread(target=self.timer)
+        self._cancel = False
+        self._timer_event = threading.Event()
+
 
     def handle_function(self):
-        self.thread = threading.Timer(self.timespan, self.handle_function)
-        self.thread.start()
-        self.target()
+        while not self._cancel:
+            self._timer_event.wait()
+            self._timer_event.clear()
+            self._target()
+
+    def timer(self):
+        while not self._cancel:
+            time.sleep(self._timespan)
+            self._timer_event.set()
 
     def start(self):
-        self.thread.start()
+        self._timer.start()
+        self._thread.start()
 
     def cancel(self):
-        self.thread.cancel()
+        self._cancel = True
+        self._thread.join()
+        self._timer.join()

@@ -78,39 +78,39 @@ class Host(object):
             base=self.url_base,
             socketAddress="192.168.1.245:8080")
 
+if __name__ == '__main__':
+    print ("launching")
+    current_directory = os.path.dirname(os.path.realpath(__file__))
 
-print ("launching")
-current_directory = os.path.dirname(os.path.realpath(__file__))
+    settings_file = os.path.join(current_directory, "settings.json")
+    settings = {"url_base": "/",
+                "port": 4567
+                }
 
-settings_file = os.path.join(current_directory, "settings.json")
-settings = {"url_base": "/",
-            "port": 4567
+    if os.path.exists(settings_file):
+        with open(settings_file, 'r') as settings_obj:
+            settings.update(json.load(settings_obj))
+    else:
+        with open(settings_file, 'w') as settings_obj:
+            json.dump(settings, settings_obj, sort_keys=True, indent=1)
+
+    CONFIG = {
+            '/': {
+                'tools.auth_basic.on': False,
+                'tools.gzip.on': True,
+                'tools.gzip.mime_types': ['text/*', 'image/*', 'application/*', "json/*"]
             }
-
-if os.path.exists(settings_file):
-    with open(settings_file, 'r') as settings_obj:
-        settings.update(json.load(settings_obj))
-else:
-    with open(settings_file, 'w') as settings_obj:
-        json.dump(settings, settings_obj, sort_keys=True, indent=1)
-
-CONFIG = {
-        '/': {
-            'tools.auth_basic.on': False,
-            'tools.gzip.on': True,
-            'tools.gzip.mime_types': ['text/*', 'image/*', 'application/*', "json/*"]
         }
-    }
 
-cherrypy.config.update(
-    {
-        'server.socket_host': '0.0.0.0', 'server.socket_port': settings["port"], 'thread_pool': 100
-    })
+    cherrypy.config.update(
+        {
+            'server.socket_host': '0.0.0.0', 'server.socket_port': settings["port"], 'thread_pool': 100
+        })
 
-#cherrypy.quickstart(Host(current_directory, settings), '/', CONFIG)
-HOST_PROCESS = Host(current_directory, settings)
-cherrypy.tree.mount(HOST_PROCESS, config=CONFIG)
-cherrypy.engine.signals.subscribe()
-cherrypy.engine.start()
-print("launched")
-cherrypy.engine.block()
+    #cherrypy.quickstart(Host(current_directory, settings), '/', CONFIG)
+    HOST_PROCESS = Host(current_directory, settings)
+    cherrypy.tree.mount(HOST_PROCESS, config=CONFIG)
+    cherrypy.engine.signals.subscribe()
+    cherrypy.engine.start()
+    print("launched")
+    cherrypy.engine.block()
