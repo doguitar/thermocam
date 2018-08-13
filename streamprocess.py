@@ -25,6 +25,7 @@ class StreamProcess(object):
     _colors = None
 
     _pixel_buffer_lock = threading.Lock()
+    _pixel_buffer_event = threading.Event()
     _pixel_buffer = []
 
     _history = [(10, 40) for i in range(120)]
@@ -96,6 +97,7 @@ class StreamProcess(object):
         time.sleep(1)
         try:
             while not self._stop:
+                self._pixel_buffer_event.wait()
                 self._pixel_buffer_lock.acquire()
                 if len(self._pixel_buffer) == 0:
                     self._pixel_buffer_lock.release()
@@ -123,6 +125,8 @@ class StreamProcess(object):
         except Exception as ex:
             print (ex)
             self.restart()
+        finally:
+            self._pixel_buffer_event.clear()
         return
 
     def sensor_loop(self):
@@ -135,6 +139,8 @@ class StreamProcess(object):
                 self._pixel_buffer_lock.acquire()
                 self._pixel_buffer.append(pixels)
                 self._pixel_buffer_lock.release()
+
+                self._pixel_buffer_event.set()
 
                 end = time.time()
                 sleeptime = (1.0 / INPUT_FPS) - (end - start)
