@@ -29,8 +29,8 @@ class StreamProcess(object):
     _pixel_buffer = []
 
     _history = [(10, 40) for i in range(600)]
-    _mintemp = 0
-    _maxtemp = 100
+    _mintemp = 10
+    _maxtemp = 32
 
     def __init__(self):
         blue = Color("indigo")
@@ -113,10 +113,10 @@ class StreamProcess(object):
 
                 mean = np.mean(pixelbuffer, axis=0).tolist()
                 
-                self._history.pop(0)
-                self._history.append((min(mean), max(mean)))
-                self._mintemp = min([x[0] for x in self._history])
-                self._maxtemp = max([x[1] for x in self._history])
+                #self._history.pop(0)
+                #self._history.append((min(mean), max(mean)))
+                #self._mintemp = min([x[0] for x in self._history])
+                #self._maxtemp = max([x[1] for x in self._history])
 
                 mean = [(p - self._mintemp) / (max(self._maxtemp - self._mintemp, 1)) for p in mean]
                 mean = [int(x * 255) for x in mean]
