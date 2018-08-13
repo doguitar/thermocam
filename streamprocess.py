@@ -119,8 +119,8 @@ class StreamProcess(object):
                 #self._maxtemp = max([x[1] for x in self._history])
 
                 mean = [(p - self._mintemp) / (max(self._maxtemp - self._mintemp, 1)) for p in mean]
-                mean = [int(x * 255) for x in mean]
-                frame = Image.new('L', size)
+                mean = [self._colors[int(max(0, min(x, 1)) * COLORDEPTH)-1] for x in mean]
+                frame = Image.new('RGB', size)
                 frame.putdata(mean)
                 frame.save(self._ffmpeg_process.stdin, 'jpeg')
         except Exception as ex:
