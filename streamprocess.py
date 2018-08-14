@@ -11,26 +11,26 @@ from colour import Color
 COLORDEPTH = 1024
 
 OUTPUT_FPS = 5
-INPUT_FPS = OUTPUT_FPS*1
+INPUT_FPS = OUTPUT_FPS*10
 
 class StreamProcess(object):
 
     _ffmpeg_process = None
     _sensor_timer = None
-    _image_thread = None
+    _image_timer = None
     _sensor = None
     _stop = False
     _start_args = None
 
     _colors = None
 
+    _mintemp = 10.0
+    _maxtemp = 32.0
+
     _pixel_buffer_lock = threading.Lock()
     _pixel_buffer_event = threading.Event()
-    _pixel_buffer = []
+    _pixel_buffer = [_mintemp, _mintemp, _maxtemp, _maxtemp]
 
-    _history = [(10, 40) for i in range(600)]
-    _mintemp = 10
-    _maxtemp = 32
 
     _fakedata = [_mintemp+i for i in range(8*8)]
 
@@ -53,7 +53,7 @@ class StreamProcess(object):
             '-y',            
             '-f', 'image2pipe',
             "-c:v", "mjpeg",
-            '-framerate', str(INPUT_FPS),
+            '-framerate', str(OUTPUT_FPS),
             '-i', '-',
             '-f', 'mpegts',
             '-c:v', 'mpeg1video',
@@ -62,14 +62,16 @@ class StreamProcess(object):
             '-q', '2',
             '-r', str(OUTPUT_FPS),
             '-g', '1',
+            '-bufsize', '2024k',
+            '-maxrate', '1024k',
             '-strict', '-1',
             target
         ], stdin=subprocess.PIPE)
         self._pixel_buffer_event.clear()
         self._sensor_timer = PerpetualTimer(1.0/INPUT_FPS, self.read_sensor)
         self._sensor_timer.start()
-        self._image_thread = threading.Thread(target=self.image_loop)
-        self._image_thread.start()
+        self._image_timer = PerpetualTimer(1.0/INPUT_FPS, target=self.render_image)
+        self._image_timer.start()
         return
 
     def stop(self):
@@ -88,11 +90,10 @@ class StreamProcess(object):
                 self._sensor_timer = None
             except:
                 pass
-        if self._image_thread:
+        if self._image_timer:
             try:
-                if self._image_thread.isAlive():
-                    self._image_thread.join()
-                self._image_thread = None
+                self._image_timer.cancel()
+                self._image_timer = None
             except:
                 pass
         return
@@ -101,34 +102,20 @@ class StreamProcess(object):
         self.stop()
         self.start(*self._start_args)
 
-    def image_loop(self):
-        time.sleep(1)
-        size = None
+    def render_image(self):
         try:
-            while not self._stop:
-                self._pixel_buffer_event.wait()
-                self._pixel_buffer_lock.acquire()
-                pixelbuffer = self._pixel_buffer[:]
-                self._pixel_buffer = []
-                self._pixel_buffer_lock.release()
-                self._pixel_buffer_event.clear()
+            self._pixel_buffer_lock.acquire()
+            pixelbuffer = self._pixel_buffer[:]
+            self._pixel_buffer_lock.release()
 
-                if not size:
-                    size = int(len(pixelbuffer[0])**(1 / 2.0))
-                    size = (size, size)
+            size = int(len(pixelbuffer)**(1 / 2.0))
+            size = (size, size)
 
-                mean = np.mean(pixelbuffer, axis=0).tolist()
-                
-                #self._history.pop(0)
-                #self._history.append((min(mean), max(mean)))
-                #self._mintemp = min([x[0] for x in self._history])
-                #self._maxtemp = max([x[1] for x in self._history])
-
-                mean = [(p - self._mintemp) / (max(self._maxtemp - self._mintemp, 1)) for p in mean]
-                mean = [self._colors[int(max(0, min(x, 1)) * COLORDEPTH)-1] for x in mean]
-                frame = Image.new('RGB', size)
-                frame.putdata(mean)
-                frame.save(self._ffmpeg_process.stdin, 'jpeg')
+            pixelbuffer = [(p - self._mintemp) / (max(self._maxtemp - self._mintemp, 1)) for p in pixelbuffer]
+            pixelbuffer = [self._colors[int(max(0, min(x, 1)) * COLORDEPTH)-1] for x in pixelbuffer]
+            frame = Image.new('RGB', size)
+            frame.putdata(pixelbuffer)
+            frame.save(self._ffmpeg_process.stdin, 'jpeg')
         except Exception as ex:
             print (ex)
             self.restart()
@@ -143,8 +130,7 @@ class StreamProcess(object):
                 pixels = self._fakedata
 
             self._pixel_buffer_lock.acquire()
-            self._pixel_buffer.append(pixels)
-            self._pixel_buffer_event.set()
+            self._pixel_buffer = pixels
             self._pixel_buffer_lock.release()
 
         except Exception as ex:
