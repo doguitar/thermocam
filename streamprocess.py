@@ -24,8 +24,8 @@ class StreamProcess(object):
 
     _colors = None
 
-    _mintemp = 10.0
-    _maxtemp = 32.0
+    _mintemp = 15.0
+    _maxtemp = 28.0
 
     _pixel_buffer_lock = threading.Lock()
     _pixel_buffer_event = threading.Event()
@@ -59,11 +59,9 @@ class StreamProcess(object):
             '-c:v', 'mpeg1video',
             '-b:v', '0',
             '-bf', '0',
-            '-q', '2',
+            '-q', '32',
             '-r', str(OUTPUT_FPS),
-            '-g', '1',
-            '-bufsize', '2024k',
-            '-maxrate', '1024k',
+            '-g', '2',
             '-strict', '-1',
             target
         ], stdin=subprocess.PIPE)
@@ -107,7 +105,7 @@ class StreamProcess(object):
             self._pixel_buffer_lock.acquire()
             pixelbuffer = self._pixel_buffer[:]
             self._pixel_buffer_lock.release()
-
+            print (pixelbuffer)
             size = int(len(pixelbuffer)**(1 / 2.0))
             size = (size, size)
 
